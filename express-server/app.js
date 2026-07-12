@@ -53,6 +53,9 @@ app.use("/api/images", imageRouter);
 const resultRouter = require("./routes/results")(sequelize);
 app.use("/api/results", resultRouter);
 
+const spatialRouter = require("./routes/spatial")(sequelize);
+app.use("/api/spatial", spatialRouter);
+
 app.get("/", (req, res) => {
   res.send("GeoAI 백엔드 서버 구동 중");
 });

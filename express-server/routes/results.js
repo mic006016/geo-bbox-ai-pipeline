@@ -8,8 +8,6 @@ module.exports = (sequelize) => {
   const Analysis = sequelize.models.RoadDamage;
 
   router.post("/save", async (req, res) => {
-    console.log("받은 데이터:", req.body);
-
     try {
       const { taskId, resultLabel, confidence } = req.body;
 
