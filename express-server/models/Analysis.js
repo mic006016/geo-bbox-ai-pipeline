@@ -1,7 +1,7 @@
 const { DataTypes } = require("sequelize");
 
 module.exports = (sequelize) => {
-  const RoadDamage = sequelize.define(
+  const Analysis = sequelize.define(
     "RoadDamage",
     {
       id: {
@@ -61,5 +61,5 @@ module.exports = (sequelize) => {
     },
   );
 
-  return RoadDamage;
+  return Analysis;
 };

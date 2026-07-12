@@ -19,7 +19,7 @@ const sequelize = new Sequelize(
 );
 
 // 2. Sequelize 모델 로드 및 초기화
-const RoadDamage = require("./models/RoadDamage")(sequelize);
+const Analysis = require("./models/Analysis")(sequelize);
 
 // 3. 데이터베이스 동기화 및 서버 시작 함수
 async function startServer() {
@@ -49,6 +49,9 @@ app.use("/uploads", express.static("uploads"));
 
 const imageRouter = require("./routes/image")(sequelize);
 app.use("/api/images", imageRouter);
+
+const resultRouter = require("./routes/results")(sequelize);
+app.use("/api/results", resultRouter);
 
 app.get("/", (req, res) => {
   res.send("GeoAI 백엔드 서버 구동 중");

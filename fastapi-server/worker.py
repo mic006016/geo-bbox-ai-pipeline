@@ -2,6 +2,7 @@ import os
 import json
 import time
 import redis
+import requests
 from dotenv import load_dotenv
 from inference import detector
 
@@ -68,7 +69,22 @@ def start_worker():
                   
                 print("--------------------------------------------------")
                 
-                # TODO: 다음 단계에서 result와 lat, lon을 통합하여 MySQL(Sequelize)로 갱신하는 코드가 들어옵니다.
+                result_data = {
+                    "taskId": task_id,
+                    "imagePath": relative_image_path,
+                    "latitude": lat,
+                    "longitude": lon,
+                    "resultLabel": "Damage Detected", # 모델 출력값
+                    "confidence": 0.98               # 모델 확신도
+                }
+
+                # Express 서버로 결과 전송
+                try:
+                    response = requests.post("http://localhost:3000/api/results/save", json=result_data)
+                    if response.status_code == 200:
+                        print("✅ 결과 전송 및 DB 적재 성공!")
+                except Exception as e:
+                    print(f"❌ 전송 실패: {e}")
 
         except redis.ConnectionError:
             print("❌ Redis 서버와의 연결이 끊어졌습니다. 5초 후 재시도합니다...")

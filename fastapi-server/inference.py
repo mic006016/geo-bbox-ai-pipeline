@@ -45,7 +45,7 @@ class DamageDetector:
       top1_prob, top1_cat_idx = torch.top_keys = torch.max(probabilities, 0)
       
       confidence = top1_prob.item() * 100
-      label = self.categories[top1_cat_idx.tem()]
+      label = self.categories[top1_cat_idx.item()]
       
       return {
         "success": True,
