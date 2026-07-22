@@ -18,6 +18,7 @@ def start_worker():
     # 1. Redis 연결 설정
     try:
         r = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, db=0, decode_responses=True)
+        r.ping()
         print(f"✅ Redis 큐에 연결! ({REDIS_HOST}:{REDIS_PORT})")
     except Exception as e:
         print(f"❌ Redis 연결 실패: {e}")
@@ -38,59 +39,51 @@ def start_worker():
                 
                 task_id = payload.get("taskId")
                 relative_image_path = payload.get("imagePath")
+                
+                # Node.js 로직(EXIF 파싱)에서 보내는 GPS 좌표 가져오기                
                 lat = payload.get("latitude")
                 lon = payload.get("longitude")
+                                
+                # 실제 이미지 파일 절대 경로
+                absolute_image_path = os.path.join(BASE_DIR, "express-server", relative_image_path)
                 
+
                 print("\n==================================================")
                 print(f"[Queue Pop] 새로운 작업 수신 완료! Task ID: {task_id}")
-                print(f"지리 좌표 추출값: 위도 {lat}, 경도 {lon}")
-                
-                # Node.js 서버가 저장한 실제 이미지 파일 절대 경로 계산
-                absolute_image_path = os.path.join(BASE_DIR, "express-server", relative_image_path)
-                print(f"이미지 경로: {absolute_image_path}")
+                print(f"🌍 GPS 위치: 위도 {lat}, 경도 {lon}")
+                print(f"📂 이미지 절대 경로: {absolute_image_path}")
                 print("==================================================")
-                               
                 
-                # 3. [AI 모델 추론구간] EfficientNetV2-S 연산 개시
-                print("[AI Model] EfficientNetV2-S 엔진 가동 및 추론 중...")
-                start_time = time.time()
-                
-                result = detector.detect(absolute_image_path)
-                
-                end_time = time.time()
-                elapsed_time = round(end_time - start_time, 4)
+                # [AI 모델 추론구간]
+                result = detector.detect_damages(absolute_image_path, lat, lon)
                 
                 if result["success"]:
-                  print(f"✅ [Task 완료] ID: {task_id} 분석 성공! (소요 시간: {elapsed_time}초)")
-                  print(f"분석 결과 레이블: {result['label']}")
-                  print(f"예측 확신도(Confidence): {result['confidence']}%")
+                    result_payload = {
+                        "taskId": task_id,
+                        "status": "COMPLETED",
+                        "detectedObjects": result["objects"]
+                    }
                 else:
-                  print(f"❌ [Task 실패] AI 추론 중 오류 발생: {result['error']}")
-                  
-                print("--------------------------------------------------")
+                    print(f"⚠️ YOLO 분석 실패: {result.get('error')}")
+                    result_payload = {
+                        "taskId": task_id, 
+                        "status": "FAILED", 
+                        "detectedObjects": []
+                    }
+                    
+                # Express API 서버로 결과 전송
+                response = requests.post("http://localhost:3000/api/results/save", json=result_payload)
                 
-                result_data = {
-                    "taskId": task_id,
-                    "imagePath": relative_image_path,
-                    "latitude": lat,
-                    "longitude": lon,
-                    "resultLabel": "Damage Detected", # 모델 출력값
-                    "confidence": 0.98               # 모델 확신도
-                }
-
-                # Express 서버로 결과 전송
-                try:
-                    response = requests.post("http://localhost:3000/api/results/save", json=result_data)
-                    if response.status_code == 200:
-                        print("✅ 결과 전송 및 DB 적재 성공!")
-                except Exception as e:
-                    print(f"❌ 전송 실패: {e}")
-
+                if response.status_code in [200, 201]:
+                    print(f"✅ [Task 완료] {len(result.get('objects', []))}개 파손 상황 전송 성공!")
+                else:
+                    print(f"⚠️ [전송 실패] 백엔드 응답 코드: {response.status_code}")
+                    
         except redis.ConnectionError:
             print("❌ Redis 서버와의 연결이 끊어졌습니다. 5초 후 재시도합니다...")
             time.sleep(5)
         except Exception as e:
-            print(f"⚠️ 워커 루프 중 예외 발생: {e}")
+            print(f"❌ 워커 루프 중 예기치 않은 예외 발생: {e}")
             time.sleep(1)
 
 if __name__ == "__main__":

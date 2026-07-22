@@ -1,36 +1,53 @@
-// routes/results.js
 const express = require("express");
 const router = express.Router();
 
 module.exports = (sequelize) => {
-  // sequelize 객체를 통해 모델에 접근
-  // sequelize.models.RoadDamage 가져오기
-  const Analysis = sequelize.models.RoadDamage;
+  // 💡 부모 테이블(DamageTask)과 자식 테이블(DamageObject) 분리
+  const DamageTask = sequelize.models.DamageTask;
+  const DamageObject = sequelize.models.DamageObject;
 
   router.post("/save", async (req, res) => {
+    const t = await sequelize.transaction(); // 동시성 제어 트랜잭션
     try {
-      const { taskId, resultLabel, confidence } = req.body;
+      const { taskId, status, detectedObjects } = req.body;
 
-      const updated = await Analysis.update(
-        {
-          damageType: resultLabel,
-          confidence: confidence,
-          status: "VERIFIED",
-        },
-        { where: { taskId: taskId } },
+      // 1. 부모 테이블 상태 업데이트 (QUEUED -> COMPLETED)
+      await DamageTask.update(
+        { status: status },
+        { where: { taskId: taskId }, transaction: t },
       );
 
-      if (updated[0] === 0) {
-        return res
-          .status(404)
-          .json({ success: false, message: "해당 taskId를 찾을 수 없습니다." });
+      // 2. 파손 객체가 존재할 경우 자식 테이블에 벌크 인서트
+      if (
+        status === "COMPLETED" &&
+        detectedObjects &&
+        detectedObjects.length > 0
+      ) {
+        const recordsToInsert = detectedObjects.map((obj) => ({
+          taskId: taskId,
+          objectType: obj.objectType,
+          confidence: obj.confidence,
+          // 차량의 단일 GPS 위치 (모든 파손 객체가 동일한 GPS를 공유)
+          coordinates: {
+            type: "Point",
+            coordinates: [obj.longitude, obj.latitude],
+          },
+          // 프론트엔드 이미지 시각화용 픽셀 박스
+          boundingBox: obj.boundingBox,
+        }));
+
+        await DamageObject.bulkCreate(recordsToInsert, { transaction: t });
       }
 
-      console.log(`✅ DB 업데이트 완료: ${taskId}`);
-      res.status(200).json({ success: true, message: "분석 결과 저장 완료" });
+      await t.commit();
+      console.log(
+        `✅ Task ID: ${taskId} - ${detectedObjects ? detectedObjects.length : 0}개 객체 적재 완료`,
+      );
+      return res.status(200).json({ success: true });
     } catch (error) {
-      console.error("❌ DB 업데이트 실패:", error);
-      res.status(500).json({ success: false, message: error.message });
+      await t.rollback();
+      console.error("❌ 결과 적재 실패:", error);
+      return res.status(500).json({ success: false, error: error.message });
     }
   });
 
