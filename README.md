@@ -1,5 +1,11 @@
 ## 🗺️ Road Damage Searching AI Pipeline
 
+🎥 **기능 구현**
+
+https://github.com/user-attachments/assets/adbadb06-0017-4a8f-84df-2373e2ceea73
+
+---
+
 > **블랙박스 이미지 기반 도로 파손 탐지 및 대용량 지리공간 데이터 비동기 처리 백엔드 시스템**
 > <br>
 > feat: 이미지 업로드, EXIF GPS 추출 및 DB/Redis 대기열 연동
